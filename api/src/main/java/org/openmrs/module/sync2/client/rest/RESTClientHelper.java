@@ -5,7 +5,6 @@ import org.openmrs.module.fhir.api.client.BasicAuthInterceptor;
 import org.openmrs.module.fhir.api.client.HeaderClientHttpRequestInterceptor;
 import org.openmrs.module.fhir.api.helper.ClientHelper;
 import org.openmrs.module.sync2.api.utils.SyncObjectsUtils;
-import org.openmrs.module.sync2.client.RequestWrapperConverter;
 import org.openmrs.module.sync2.client.RestHttpMessageConverter;
 import org.openmrs.module.sync2.client.RestResourceCreationUtil;
 import org.openmrs.module.sync2.client.rest.resource.RestResource;
@@ -74,6 +73,6 @@ public class RESTClientHelper implements ClientHelper {
 	@Override
 	public List<HttpMessageConverter<?>> getCustomFHIRMessageConverter() {
 		return Arrays.asList(new HttpMessageConverter<?>[]
-				{ new RestHttpMessageConverter(), new StringHttpMessageConverter(), new RequestWrapperConverter() });
+				{ new RestHttpMessageConverter(), new StringHttpMessageConverter() });
 	}
 }
