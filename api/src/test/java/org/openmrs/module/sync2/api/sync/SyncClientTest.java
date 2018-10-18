@@ -4,30 +4,15 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.BDDMockito;
-import org.openmrs.Encounter;
-import org.openmrs.Obs;
-import org.openmrs.Order;
-import org.openmrs.Patient;
-import org.openmrs.PatientIdentifier;
-import org.openmrs.PersonName;
-import org.openmrs.Visit;
+import org.openmrs.*;
 import org.openmrs.api.AdministrationService;
 import org.openmrs.api.context.Context;
-import org.openmrs.module.fhir.api.helper.FHIRClientHelper;
-import org.openmrs.module.sync2.api.model.RequestWrapper;
-import org.openmrs.module.sync2.api.model.configuration.GeneralConfiguration;
-import org.openmrs.module.sync2.api.model.configuration.SyncConfiguration;
-import org.openmrs.module.sync2.api.service.SyncConfigurationService;
-import org.openmrs.module.sync2.client.ClientHelperFactory;
-import org.openmrs.module.sync2.client.rest.RESTClientHelper;
-import org.powermock.api.mockito.PowerMockito;
+import org.openmrs.module.fhir.api.client.FHIRClient;
+import org.openmrs.module.sync2.client.ClientFactory;
+import org.openmrs.module.sync2.client.rest.RestClient;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
-import org.powermock.reflect.Whitebox;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.RequestEntity;
 
-import java.net.URI;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -36,7 +21,6 @@ import java.util.TreeSet;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
-import static org.junit.Assert.assertEquals;
 import static org.openmrs.module.sync2.SyncConstants.PARENT_PASSWORD_PROPERTY;
 import static org.openmrs.module.sync2.SyncConstants.PARENT_USERNAME_PROPERTY;
 import static org.openmrs.module.sync2.api.model.enums.OpenMRSSyncInstance.PARENT;
@@ -68,11 +52,8 @@ public class SyncClientTest {
     
     private static final String REST_FULL_RESOURCE_URL = PARENT_ADDRESS + REST_RESOURCE_LINK + PATIENT_UUID;
     private static final String FHIR_FULL_RESOURCE_URL = PARENT_ADDRESS + FHIR_RESOURCE_LINK + PATIENT_UUID;
-
-    public static final String LOCAL_INSTANCE_ID = "LocalId";
-
+    
     private AdministrationService administrationServiceMock;
-    private SyncConfigurationService syncConfigurationService;
     private Patient expectedPatient;
     private Visit expectedVisit;
     private Encounter expectedEncounter;
@@ -84,44 +65,32 @@ public class SyncClientTest {
         expectedPatient = createPatient();
         expectedVisit = createVisit();
         administrationServiceMock = mock(AdministrationService.class);
-        syncConfigurationService = mock(SyncConfigurationService.class);
 
         mockStatic(Context.class);
         BDDMockito.given(Context.getAdministrationService()).willReturn(administrationServiceMock);
-        BDDMockito.given(Context.getService(SyncConfigurationService.class)).willReturn(syncConfigurationService);
+        BDDMockito.given(Context.getAdministrationService()).willReturn(administrationServiceMock);
 
         doReturn(USERNAME).when(administrationServiceMock).getGlobalProperty(PARENT_USERNAME_PROPERTY);
         doReturn(PASSWORD).when(administrationServiceMock).getGlobalProperty(PARENT_PASSWORD_PROPERTY);
         doReturn(PARENT_FEED_LOCATION).when(administrationServiceMock).getGlobalProperty("sync2.general.parentFeedLocation");
 
-        GeneralConfiguration general = mock(GeneralConfiguration.class);
-        SyncConfiguration syncConfiguration = mock(SyncConfiguration.class);
-        doReturn(syncConfiguration).when(syncConfigurationService).getSyncConfiguration();
-        doReturn(general).when(syncConfiguration).getGeneral();
-        doReturn(LOCAL_INSTANCE_ID).when(general).getLocalInstanceId();
-
         links = new HashMap<>();
         links.put(FHIR_CLIENT_KEY, FHIR_RESOURCE_LINK + PATIENT_UUID);
         links.put(REST_CLIENT_KEY, REST_RESOURCE_LINK + PATIENT_UUID);
 
-        RESTClientHelper restClientHelper = new RESTClientHelper();
-        FHIRClientHelper fhirClientHelper = new FHIRClientHelper();
 
-        ClientHelperFactory clientHelperFactory = mock(ClientHelperFactory.class);
-        doReturn(restClientHelper).when(clientHelperFactory).createClient(REST_CLIENT_KEY);
-        doReturn(fhirClientHelper).when(clientHelperFactory).createClient(FHIR_CLIENT_KEY);
-        whenNew(ClientHelperFactory.class).withNoArguments().thenReturn(clientHelperFactory);
+        RestClient restClientMock = mock(RestClient.class);
+        doReturn(createPatient()).when(restClientMock).retrieveObject(PATIENT_CATEGORY, REST_FULL_RESOURCE_URL, USERNAME, PASSWORD);
+        doReturn(createVisit()).when(restClientMock).retrieveObject(VISIT_CATEGORY, REST_FULL_RESOURCE_URL, USERNAME, PASSWORD);
 
-        SyncClient syncClient =  PowerMockito.spy(new SyncClient());
-        PowerMockito.doReturn(createPatient())
-                .when(syncClient, "retrieveObject", PATIENT_CATEGORY, REST_FULL_RESOURCE_URL, restClientHelper);
-        PowerMockito.doReturn(createVisit())
-                .when(syncClient, "retrieveObject", VISIT_CATEGORY, REST_FULL_RESOURCE_URL, restClientHelper);
-        PowerMockito.doReturn(createPatient())
-                .when(syncClient, "retrieveObject", PATIENT_CATEGORY, FHIR_FULL_RESOURCE_URL, fhirClientHelper);
-        PowerMockito.doReturn(createVisit())
-                .when(syncClient, "retrieveObject", VISIT_CATEGORY, FHIR_FULL_RESOURCE_URL, fhirClientHelper);
-        whenNew(SyncClient.class).withNoArguments().thenReturn(syncClient);
+        FHIRClient fhirClientMock = mock(FHIRClient.class);
+        doReturn(createPatient()).when(fhirClientMock).retrieveObject(PATIENT_CATEGORY, FHIR_FULL_RESOURCE_URL, USERNAME, PASSWORD);
+        doReturn(createVisit()).when(restClientMock).retrieveObject(VISIT_CATEGORY, FHIR_FULL_RESOURCE_URL, USERNAME, PASSWORD);
+
+        ClientFactory clientFactory = mock(ClientFactory.class);
+        doReturn(restClientMock).when(clientFactory).createClient(REST_CLIENT_KEY);
+        doReturn(fhirClientMock).when(clientFactory).createClient(FHIR_CLIENT_KEY);
+        whenNew(ClientFactory.class).withNoArguments().thenReturn(clientFactory);
     }
     
     @Test
@@ -142,15 +111,6 @@ public class SyncClientTest {
                 FHIR_FULL_RESOURCE_URL, PARENT);
 
         assertThat(pulledObject, is(expectedPatient));
-    }
-
-    @Test
-    public void createWrappedRequest_shouldCreateCorrectRequest() throws Exception {
-        RequestEntity childRequest = new RequestEntity(HttpMethod.GET, URI.create(PARENT_ADDRESS));
-        RequestWrapper expected = new RequestWrapper(LOCAL_INSTANCE_ID, childRequest);
-
-        RequestWrapper result = Whitebox.invokeMethod(new SyncClient(), "createWrappedRequest", childRequest);
-        assertEquals(expected, result);
     }
 
     private Patient createPatient() {
